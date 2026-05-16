@@ -94,7 +94,8 @@
       <label for="useTimer">타이머 사용</label>
     </div>
     <div id="timerSection" class="hidden">
-      <div class="timer-inputs">
+      <div id="countdown" class="hidden" style="text-align:center;font-size:1.6rem;font-weight:bold;color:#2196F3;letter-spacing:2px;padding:10px 0;"></div>
+      <div id="timerInputs" class="timer-inputs">
         <div class="time-unit">
           <input type="number" id="hours" min="0" max="23" value="0">
           <label>시간</label>
@@ -111,7 +112,6 @@
         </div>
       </div>
       <button id="timerBtn" disabled>타이머 시작</button>
-      <div id="countdown"></div>
     </div>
   </div>
 
@@ -174,11 +174,15 @@
         const secs = parseInt(msg);
         if (secs > 0) {
           countdown.textContent = formatTime(secs);
-          timerBtn.textContent  = '타이머 취소';
+          countdown.classList.remove('hidden');
+          document.getElementById('timerInputs').classList.add('hidden');
+          timerBtn.textContent = '타이머 취소';
           timerBtn.classList.add('cancel');
         } else {
           countdown.textContent = '';
-          timerBtn.textContent  = '타이머 시작';
+          countdown.classList.add('hidden');
+          document.getElementById('timerInputs').classList.remove('hidden');
+          timerBtn.textContent = '타이머 시작';
           timerBtn.classList.remove('cancel');
         }
       }
