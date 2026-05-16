@@ -49,12 +49,10 @@
       font-size: 0.85rem; color: #888; margin-bottom: 14px;
       font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;
     }
-    .radio-group {
-      display: flex; gap: 16px; margin-bottom: 16px;
-    }
+    .radio-group { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
     .radio-group label {
       display: flex; align-items: center; gap: 6px;
-      font-size: 0.95rem; color: #444; cursor: pointer;
+      font-size: 0.9rem; color: #444; cursor: pointer;
     }
     .radio-group input[type="radio"] {
       width: 17px; height: 17px; cursor: pointer;
@@ -74,19 +72,36 @@
     .time-unit input:focus { border-color: #9C27B0; }
     .time-sep { font-size: 1.4rem; color: #aaa; margin-top: 16px; }
     .off-time-wrap {
-      display: flex; justify-content: center; align-items: center; gap: 10px;
+      display: flex; justify-content: center; align-items: center;
     }
     .off-time-wrap input[type="time"] {
       height: 48px; font-size: 1.3rem; padding: 0 10px;
       border: 1.5px solid #ddd; border-radius: 10px;
       outline: none; color: #333;
     }
-    .off-time-wrap input[type="time"]:focus { border-color: #9C27B0; }
-    #timerBtn {
-      width: 100%; margin-top: 14px;
-      background: #9C27B0; height: 48px; font-size: 1rem; flex: none;
+    .temp-inputs {
+      display: flex; gap: 12px; justify-content: center;
     }
-    #timerBtn.cancel { background: #FF5722; }
+    .temp-unit { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .temp-unit label { font-size: 0.78rem; color: #888; text-align: center; }
+    .temp-unit input[type="number"] {
+      width: 80px; height: 48px; font-size: 1.3rem;
+      text-align: center; border: 1.5px solid #ddd;
+      border-radius: 10px; outline: none;
+    }
+    .temp-unit input:focus { border-color: #FF5722; }
+    .temp-status {
+      text-align: center; font-size: 0.88rem; color: #666;
+      margin-top: 10px; line-height: 1.6;
+    }
+    .mode-btn {
+      width: 100%; margin-top: 14px;
+      height: 48px; font-size: 1rem; flex: none;
+    }
+    #timerBtn  { background: #9C27B0; }
+    #timerBtn.cancel  { background: #FF5722; }
+    #tempModeBtn { background: #FF5722; }
+    #tempModeBtn.stop { background: #607D8B; }
     #countdown, #countdownOff {
       text-align: center; font-size: 1.6rem;
       font-weight: bold; color: #2196F3;
@@ -114,17 +129,12 @@
   <div class="card">
     <div class="section-title">모드 선택</div>
     <div class="radio-group">
-      <label>
-        <input type="radio" name="timerMode" id="modeTimer" value="timer">
-        <span>타이머 사용</span>
-      </label>
-      <label>
-        <input type="radio" name="timerMode" id="modeOffTime" value="offtime">
-        <span>꺼짐 시간 지정</span>
-      </label>
+      <label><input type="radio" name="timerMode" id="modeTimer" value="timer"><span>타이머 사용</span></label>
+      <label><input type="radio" name="timerMode" id="modeOffTime" value="offtime"><span>꺼짐 시간 지정</span></label>
+      <label><input type="radio" name="timerMode" id="modeTempCtrl" value="tempctrl"><span>목표 온도 설정</span></label>
     </div>
 
-    <!-- 타이머 사용 입력 -->
+    <!-- 타이머 사용 -->
     <div id="timerInputsWrap" class="hidden">
       <div id="countdown" class="hidden"></div>
       <div id="timerInputs" class="timer-inputs">
@@ -143,45 +153,62 @@
           <label>초</label>
         </div>
       </div>
+      <button id="timerBtn" class="mode-btn hidden" disabled>타이머 시작</button>
     </div>
 
-    <!-- 꺼짐 시간 지정 입력 -->
+    <!-- 꺼짐 시간 지정 -->
     <div id="offTimeWrap" class="hidden">
       <div id="countdownOff" class="hidden"></div>
       <div id="offTimeInputs" class="off-time-wrap">
         <input type="time" id="offTime">
       </div>
+      <button id="timerBtnOff" class="mode-btn hidden" disabled>타이머 시작</button>
     </div>
 
-    <button id="timerBtn" class="hidden" disabled>타이머 시작</button>
+    <!-- 목표 온도 설정 -->
+    <div id="tempCtrlWrap" class="hidden">
+      <div id="tempCtrlInputs">
+        <div class="temp-inputs">
+          <div class="temp-unit">
+            <input type="number" id="activationTemp" min="-20" max="80" step="0.5" value="28">
+            <label>가동 온도 (°C)<br>이상이면 팬 ON</label>
+          </div>
+          <div class="temp-unit">
+            <input type="number" id="targetTemp" min="-20" max="80" step="0.5" value="24">
+            <label>목표 온도 (°C)<br>이하이면 팬 OFF</label>
+          </div>
+        </div>
+      </div>
+      <div id="tempStatus" class="temp-status hidden"></div>
+      <button id="tempModeBtn" class="mode-btn hidden" disabled>설정</button>
+    </div>
   </div>
 
-
-
   <script>
-    const MQTT_HOST    = 'f228bba902564c449137624b48611c35.s1.eu.hivemq.cloud';
-    const MQTT_USER    = 'cjfghksals';
-    const MQTT_PASS    = 'Ehdals6469!';
-    const TOPIC_CTRL   = 'fan/control';
-    const TOPIC_STATUS = 'fan/status';
-    const TOPIC_TIMER  = 'fan/timer';
-    const TOPIC_TEMP   = 'fan/temp';
+    const MQTT_HOST     = 'f228bba902564c449137624b48611c35.s1.eu.hivemq.cloud';
+    const MQTT_USER     = 'cjfghksals';
+    const MQTT_PASS     = 'Ehdals6469!';
+    const TOPIC_CTRL    = 'fan/control';
+    const TOPIC_STATUS  = 'fan/status';
+    const TOPIC_TIMER   = 'fan/timer';
+    const TOPIC_TEMP    = 'fan/temp';
+    const TOPIC_TEMPMODE = 'fan/tempmode';
 
-    const dot             = document.getElementById('dot');
-    const statusText      = document.getElementById('statusText');
-    const onBtn           = document.getElementById('onBtn');
-    const offBtn          = document.getElementById('offBtn');
-    const timerBtn        = document.getElementById('timerBtn');
-    const countdown       = document.getElementById('countdown');
-    const countdownOff    = document.getElementById('countdownOff');
-    const timerInputsWrap = document.getElementById('timerInputsWrap');
-    const offTimeWrap     = document.getElementById('offTimeWrap');
-    const modeTimer       = document.getElementById('modeTimer');
-    const modeOffTime     = document.getElementById('modeOffTime');
+    const dot          = document.getElementById('dot');
+    const statusText   = document.getElementById('statusText');
+    const onBtn        = document.getElementById('onBtn');
+    const offBtn       = document.getElementById('offBtn');
+    const timerBtn     = document.getElementById('timerBtn');
+    const timerBtnOff  = document.getElementById('timerBtnOff');
+    const tempModeBtn  = document.getElementById('tempModeBtn');
+    const countdown    = document.getElementById('countdown');
+    const countdownOff = document.getElementById('countdownOff');
+    const tempStatus   = document.getElementById('tempStatus');
 
-    let fanOn        = false;
-    let mqttReady    = false;
-    let timerRunning = false;
+    let fanOn         = false;
+    let mqttReady     = false;
+    let timerRunning  = false;
+    let tempModeOn    = false;
 
     // 저장된 모드 복원
     const savedMode = localStorage.getItem('timerMode');
@@ -189,23 +216,27 @@
       const r = document.querySelector(`input[name="timerMode"][value="${savedMode}"]`);
       if (r) {
         r.checked = true;
-        timerInputsWrap.classList.toggle('hidden', savedMode !== 'timer');
-        offTimeWrap.classList.toggle('hidden', savedMode !== 'offtime');
-        timerBtn.classList.remove('hidden');
+        showModeSection(savedMode);
       }
     }
 
-    // 라디오 변경
     document.querySelectorAll('input[name="timerMode"]').forEach(r => {
       r.addEventListener('change', () => {
         const mode = document.querySelector('input[name="timerMode"]:checked').value;
         localStorage.setItem('timerMode', mode);
-        timerInputsWrap.classList.toggle('hidden', mode !== 'timer');
-        offTimeWrap.classList.toggle('hidden', mode !== 'offtime');
-        timerBtn.classList.remove('hidden');
+        showModeSection(mode);
         updateButtons();
       });
     });
+
+    function showModeSection(mode) {
+      document.getElementById('timerInputsWrap').classList.toggle('hidden', mode !== 'timer');
+      document.getElementById('offTimeWrap').classList.toggle('hidden', mode !== 'offtime');
+      document.getElementById('tempCtrlWrap').classList.toggle('hidden', mode !== 'tempctrl');
+      if (mode === 'timer')    timerBtn.classList.remove('hidden');
+      if (mode === 'offtime')  timerBtnOff.classList.remove('hidden');
+      if (mode === 'tempctrl') tempModeBtn.classList.remove('hidden');
+    }
 
     const client = mqtt.connect(`wss://${MQTT_HOST}:8884/mqtt`, {
       username: MQTT_USER,
@@ -219,11 +250,11 @@
       client.subscribe(TOPIC_STATUS);
       client.subscribe(TOPIC_TIMER);
       client.subscribe(TOPIC_TEMP);
+      client.subscribe(TOPIC_TEMPMODE);
       updateButtons();
     });
 
     client.on('error', () => { statusText.textContent = '연결 실패'; });
-
     client.on('offline', () => {
       dot.classList.remove('on');
       statusText.textContent = '연결 끊김';
@@ -239,8 +270,7 @@
       }
 
       if (topic === TOPIC_STATUS) {
-        const newState = msg === '1';
-        fanOn = newState;
+        fanOn = msg === '1';
         updateButtons();
       }
 
@@ -249,23 +279,22 @@
         if (secs > 0) {
           timerRunning = true;
           setRadiosDisabled(true);
-          timerBtn.classList.remove('hidden');
-          timerBtn.textContent = '타이머 취소';
-          timerBtn.classList.add('cancel');
-
           const mode = document.querySelector('input[name="timerMode"]:checked')?.value;
-
-          // 어떤 모드인지 모를 때는 timer 모드로 표시
           if (!mode || mode === 'timer') {
             modeTimer.checked = true;
-            timerInputsWrap.classList.remove('hidden');
-            offTimeWrap.classList.add('hidden');
+            showModeSection('timer');
+            timerBtn.classList.remove('hidden');
+            timerBtn.textContent = '타이머 취소';
+            timerBtn.classList.add('cancel');
             countdown.textContent = formatTime(secs);
             countdown.classList.remove('hidden');
             document.getElementById('timerInputs').classList.add('hidden');
           } else {
-            offTimeWrap.classList.remove('hidden');
-            timerInputsWrap.classList.add('hidden');
+            modeOffTime.checked = true;
+            showModeSection('offtime');
+            timerBtnOff.classList.remove('hidden');
+            timerBtnOff.textContent = '타이머 취소';
+            timerBtnOff.classList.add('cancel');
             countdownOff.textContent = formatTime(secs);
             countdownOff.classList.remove('hidden');
             document.getElementById('offTimeInputs').classList.add('hidden');
@@ -273,10 +302,11 @@
         } else {
           timerRunning = false;
           setRadiosDisabled(false);
-          timerBtn.textContent = '타이머 시작';
-          timerBtn.classList.remove('cancel');
-
-          countdown.textContent    = '';
+          [timerBtn, timerBtnOff].forEach(b => {
+            b.textContent = '타이머 시작';
+            b.classList.remove('cancel');
+          });
+          countdown.textContent = '';
           countdownOff.textContent = '';
           countdown.classList.add('hidden');
           countdownOff.classList.add('hidden');
@@ -285,20 +315,43 @@
         }
         updateButtons();
       }
+
+      if (topic === TOPIC_TEMPMODE) {
+        if (msg.startsWith('1:')) {
+          const parts = msg.split(':');
+          const act = parts[1], tgt = parts[2];
+          tempModeOn = true;
+          modeTempCtrl.checked = true;
+          showModeSection('tempctrl');
+          setRadiosDisabled(true);
+          document.getElementById('tempCtrlInputs').classList.add('hidden');
+          tempStatus.textContent = `가동 온도: ${act}°C 이상\n목표 온도: ${tgt}°C 이하`;
+          tempStatus.classList.remove('hidden');
+          tempModeBtn.classList.remove('hidden');
+          tempModeBtn.textContent = '종료';
+          tempModeBtn.classList.add('stop');
+        } else {
+          tempModeOn = false;
+          setRadiosDisabled(false);
+          document.getElementById('tempCtrlInputs').classList.remove('hidden');
+          tempStatus.classList.add('hidden');
+          tempModeBtn.textContent = '설정';
+          tempModeBtn.classList.remove('stop');
+        }
+        updateButtons();
+      }
     });
 
     function updateButtons() {
-      onBtn.disabled    = !mqttReady || fanOn;
-      offBtn.disabled   = !mqttReady || !fanOn;
-      timerBtn.disabled = !mqttReady || timerRunning
-        ? (!mqttReady)
-        : false;
-      timerBtn.disabled = !mqttReady;
+      onBtn.disabled  = !mqttReady || fanOn;
+      offBtn.disabled = !mqttReady || !fanOn;
+      timerBtn.disabled    = !mqttReady;
+      timerBtnOff.disabled = !mqttReady;
+      tempModeBtn.disabled = !mqttReady;
     }
 
     function setRadiosDisabled(val) {
-      modeTimer.disabled   = val;
-      modeOffTime.disabled = val;
+      document.querySelectorAll('input[name="timerMode"]').forEach(r => r.disabled = val);
     }
 
     function publish(msg) { client.publish(TOPIC_CTRL, msg); }
@@ -306,35 +359,50 @@
     onBtn.addEventListener('click',  () => publish('1'));
     offBtn.addEventListener('click', () => publish('0'));
 
-    timerBtn.addEventListener('click', () => {
-      if (timerBtn.classList.contains('cancel')) {
-        publish('0');
-        return;
-      }
-
-      const mode = document.querySelector('input[name="timerMode"]:checked')?.value;
+    function startTimer(isOffTime) {
       let total = 0;
-
-      if (mode === 'timer') {
+      if (!isOffTime) {
         const h = parseInt(document.getElementById('hours').value)   || 0;
         const m = parseInt(document.getElementById('minutes').value) || 0;
         const s = parseInt(document.getElementById('seconds').value) || 0;
         total = h * 3600 + m * 60 + s;
-      } else if (mode === 'offtime') {
+      } else {
         const val = document.getElementById('offTime').value;
         if (!val) return;
         const [hh, mm] = val.split(':').map(Number);
-        const now  = new Date();
-        const off  = new Date();
+        const now = new Date(), off = new Date();
         off.setHours(hh, mm, 0, 0);
-        if (off <= now) off.setDate(off.getDate() + 1); // 이미 지난 시간이면 내일
+        if (off <= now) off.setDate(off.getDate() + 1);
         total = Math.round((off - now) / 1000);
       }
-
       if (total <= 0) return;
       publish('T' + total);
+    }
+
+    timerBtn.addEventListener('click', () => {
+      if (timerBtn.classList.contains('cancel')) { publish('0'); return; }
+      startTimer(false);
     });
 
+    timerBtnOff.addEventListener('click', () => {
+      if (timerBtnOff.classList.contains('cancel')) { publish('0'); return; }
+      startTimer(true);
+    });
+
+    tempModeBtn.addEventListener('click', () => {
+      if (tempModeBtn.classList.contains('stop')) {
+        publish('TEMPSTOP');
+        return;
+      }
+      const act = parseFloat(document.getElementById('activationTemp').value);
+      const tgt = parseFloat(document.getElementById('targetTemp').value);
+      if (isNaN(act) || isNaN(tgt)) return;
+      publish(`TEMP:${act}:${tgt}`);
+    });
+
+    const modeTimer    = document.getElementById('modeTimer');
+    const modeOffTime  = document.getElementById('modeOffTime');
+    const modeTempCtrl = document.getElementById('modeTempCtrl');
 
     function formatTime(secs) {
       const h = String(Math.floor(secs / 3600)).padStart(2, '0');
