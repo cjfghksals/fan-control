@@ -38,27 +38,42 @@
     #onBtn  { background: #2196F3; }
     #offBtn { background: #f44336; }
     .section-title {
-      font-size: 0.85rem; color: #888; margin-bottom: 12px;
+      font-size: 0.85rem; color: #888; margin-bottom: 14px;
       font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;
     }
-    .timer-toggle {
-      display: flex; align-items: center; gap: 10px;
-      margin-bottom: 14px; cursor: pointer;
+    .radio-group {
+      display: flex; gap: 16px; margin-bottom: 16px;
     }
-    .timer-toggle input { width: 18px; height: 18px; cursor: pointer; }
-    .timer-toggle label { font-size: 0.95rem; color: #444; cursor: pointer; }
+    .radio-group label {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.95rem; color: #444; cursor: pointer;
+    }
+    .radio-group input[type="radio"] {
+      width: 17px; height: 17px; cursor: pointer;
+      accent-color: #9C27B0;
+    }
+    .radio-group input:disabled + span { color: #bbb; }
     .timer-inputs {
       display: flex; gap: 8px; align-items: center; justify-content: center;
     }
     .time-unit { display: flex; flex-direction: column; align-items: center; gap: 4px; }
     .time-unit label { font-size: 0.75rem; color: #888; }
-    .time-unit input {
+    .time-unit input[type="number"] {
       width: 70px; height: 48px; font-size: 1.3rem;
       text-align: center; border: 1.5px solid #ddd;
       border-radius: 10px; outline: none;
     }
-    .time-unit input:focus { border-color: #2196F3; }
+    .time-unit input:focus { border-color: #9C27B0; }
     .time-sep { font-size: 1.4rem; color: #aaa; margin-top: 16px; }
+    .off-time-wrap {
+      display: flex; justify-content: center; align-items: center; gap: 10px;
+    }
+    .off-time-wrap input[type="time"] {
+      height: 48px; font-size: 1.3rem; padding: 0 10px;
+      border: 1.5px solid #ddd; border-radius: 10px;
+      outline: none; color: #333;
+    }
+    .off-time-wrap input[type="time"]:focus { border-color: #9C27B0; }
     #timerBtn {
       width: 100%; margin-top: 14px;
       background: #9C27B0; height: 48px; font-size: 1rem; flex: none;
@@ -67,7 +82,7 @@
     #countdown {
       text-align: center; font-size: 1.6rem;
       font-weight: bold; color: #2196F3;
-      min-height: 36px; margin-top: 10px; letter-spacing: 2px;
+      padding: 10px 0; letter-spacing: 2px;
     }
     .hidden { display: none !important; }
   </style>
@@ -89,12 +104,20 @@
 
   <div class="card">
     <div class="section-title">타이머</div>
-    <div class="timer-toggle">
-      <input type="checkbox" id="useTimer">
-      <label for="useTimer">타이머 사용</label>
+    <div class="radio-group">
+      <label>
+        <input type="radio" name="timerMode" id="modeTimer" value="timer">
+        <span>타이머 사용</span>
+      </label>
+      <label>
+        <input type="radio" name="timerMode" id="modeOffTime" value="offtime">
+        <span>꺼짐 시간 지정</span>
+      </label>
     </div>
-    <div id="timerSection" class="hidden">
-      <div id="countdown" class="hidden" style="text-align:center;font-size:1.6rem;font-weight:bold;color:#2196F3;letter-spacing:2px;padding:10px 0;"></div>
+
+    <!-- 타이머 사용 입력 -->
+    <div id="timerInputsWrap" class="hidden">
+      <div id="countdown" class="hidden"></div>
       <div id="timerInputs" class="timer-inputs">
         <div class="time-unit">
           <input type="number" id="hours" min="0" max="23" value="0">
@@ -111,33 +134,52 @@
           <label>초</label>
         </div>
       </div>
-      <button id="timerBtn" disabled>타이머 시작</button>
     </div>
+
+    <!-- 꺼짐 시간 지정 입력 -->
+    <div id="offTimeWrap" class="hidden">
+      <div id="countdownOff" class="hidden"></div>
+      <div id="offTimeInputs" class="off-time-wrap">
+        <input type="time" id="offTime">
+      </div>
+    </div>
+
+    <button id="timerBtn" class="hidden" disabled>타이머 시작</button>
   </div>
 
   <script>
-    const MQTT_HOST  = 'f228bba902564c449137624b48611c35.s1.eu.hivemq.cloud';
-    const MQTT_USER  = 'cjfghksals';
-    const MQTT_PASS  = 'Ehdals6469!';
+    const MQTT_HOST    = 'f228bba902564c449137624b48611c35.s1.eu.hivemq.cloud';
+    const MQTT_USER    = 'cjfghksals';
+    const MQTT_PASS    = 'Ehdals6469!';
     const TOPIC_CTRL   = 'fan/control';
     const TOPIC_STATUS = 'fan/status';
     const TOPIC_TIMER  = 'fan/timer';
 
-    const dot        = document.getElementById('dot');
-    const statusText = document.getElementById('statusText');
-    const onBtn      = document.getElementById('onBtn');
-    const offBtn     = document.getElementById('offBtn');
-    const timerBtn   = document.getElementById('timerBtn');
-    const countdown  = document.getElementById('countdown');
-    const useTimer   = document.getElementById('useTimer');
-    const timerSection = document.getElementById('timerSection');
+    const dot             = document.getElementById('dot');
+    const statusText      = document.getElementById('statusText');
+    const onBtn           = document.getElementById('onBtn');
+    const offBtn          = document.getElementById('offBtn');
+    const timerBtn        = document.getElementById('timerBtn');
+    const countdown       = document.getElementById('countdown');
+    const countdownOff    = document.getElementById('countdownOff');
+    const timerInputsWrap = document.getElementById('timerInputsWrap');
+    const offTimeWrap     = document.getElementById('offTimeWrap');
+    const modeTimer       = document.getElementById('modeTimer');
+    const modeOffTime     = document.getElementById('modeOffTime');
 
-    let fanOn     = false;
-    let mqttReady = false;
+    let fanOn        = false;
+    let mqttReady    = false;
     let timerRunning = false;
 
-    useTimer.addEventListener('change', () => {
-      timerSection.classList.toggle('hidden', !useTimer.checked);
+    // 라디오 변경
+    document.querySelectorAll('input[name="timerMode"]').forEach(r => {
+      r.addEventListener('change', () => {
+        const mode = document.querySelector('input[name="timerMode"]:checked').value;
+        timerInputsWrap.classList.toggle('hidden', mode !== 'timer');
+        offTimeWrap.classList.toggle('hidden', mode !== 'offtime');
+        timerBtn.classList.remove('hidden');
+        updateButtons();
+      });
     });
 
     const client = mqtt.connect(`wss://${MQTT_HOST}:8884/mqtt`, {
@@ -175,36 +217,62 @@
         const secs = parseInt(msg);
         if (secs > 0) {
           timerRunning = true;
-          useTimer.checked = true;
-          useTimer.disabled = true;
-          timerSection.classList.remove('hidden');
-          countdown.textContent = formatTime(secs);
-          countdown.classList.remove('hidden');
-          document.getElementById('timerInputs').classList.add('hidden');
+          setRadiosDisabled(true);
+          timerBtn.classList.remove('hidden');
           timerBtn.textContent = '타이머 취소';
           timerBtn.classList.add('cancel');
+
+          const mode = document.querySelector('input[name="timerMode"]:checked')?.value;
+
+          // 어떤 모드인지 모를 때는 timer 모드로 표시
+          if (!mode || mode === 'timer') {
+            modeTimer.checked = true;
+            timerInputsWrap.classList.remove('hidden');
+            offTimeWrap.classList.add('hidden');
+            countdown.textContent = formatTime(secs);
+            countdown.classList.remove('hidden');
+            document.getElementById('timerInputs').classList.add('hidden');
+          } else {
+            offTimeWrap.classList.remove('hidden');
+            timerInputsWrap.classList.add('hidden');
+            countdownOff.textContent = formatTime(secs);
+            countdownOff.classList.remove('hidden');
+            document.getElementById('offTimeInputs').classList.add('hidden');
+          }
         } else {
           timerRunning = false;
-          useTimer.disabled = false;
-          countdown.textContent = '';
-          countdown.classList.add('hidden');
-          document.getElementById('timerInputs').classList.remove('hidden');
+          setRadiosDisabled(false);
           timerBtn.textContent = '타이머 시작';
           timerBtn.classList.remove('cancel');
+
+          countdown.textContent    = '';
+          countdownOff.textContent = '';
+          countdown.classList.add('hidden');
+          countdownOff.classList.add('hidden');
+          document.getElementById('timerInputs').classList.remove('hidden');
+          document.getElementById('offTimeInputs').classList.remove('hidden');
         }
+        updateButtons();
       }
     });
 
     function updateButtons() {
-      const ready = mqttReady;
-      onBtn.disabled   = !ready || fanOn;
-      offBtn.disabled  = !ready || !fanOn;
-      timerBtn.disabled = !ready;
+      onBtn.disabled    = !mqttReady || fanOn;
+      offBtn.disabled   = !mqttReady || !fanOn;
+      timerBtn.disabled = !mqttReady || timerRunning
+        ? (!mqttReady)
+        : false;
+      timerBtn.disabled = !mqttReady;
+    }
+
+    function setRadiosDisabled(val) {
+      modeTimer.disabled   = val;
+      modeOffTime.disabled = val;
     }
 
     function publish(msg) { client.publish(TOPIC_CTRL, msg); }
 
-    onBtn.addEventListener('click', () => publish('1'));
+    onBtn.addEventListener('click',  () => publish('1'));
     offBtn.addEventListener('click', () => publish('0'));
 
     timerBtn.addEventListener('click', () => {
@@ -212,10 +280,26 @@
         publish('0');
         return;
       }
-      const h = parseInt(document.getElementById('hours').value)   || 0;
-      const m = parseInt(document.getElementById('minutes').value) || 0;
-      const s = parseInt(document.getElementById('seconds').value) || 0;
-      const total = h * 3600 + m * 60 + s;
+
+      const mode = document.querySelector('input[name="timerMode"]:checked')?.value;
+      let total = 0;
+
+      if (mode === 'timer') {
+        const h = parseInt(document.getElementById('hours').value)   || 0;
+        const m = parseInt(document.getElementById('minutes').value) || 0;
+        const s = parseInt(document.getElementById('seconds').value) || 0;
+        total = h * 3600 + m * 60 + s;
+      } else if (mode === 'offtime') {
+        const val = document.getElementById('offTime').value;
+        if (!val) return;
+        const [hh, mm] = val.split(':').map(Number);
+        const now  = new Date();
+        const off  = new Date();
+        off.setHours(hh, mm, 0, 0);
+        if (off <= now) off.setDate(off.getDate() + 1); // 이미 지난 시간이면 내일
+        total = Math.round((off - now) / 1000);
+      }
+
       if (total <= 0) return;
       publish('T' + total);
     });
