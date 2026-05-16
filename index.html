@@ -138,13 +138,6 @@
 
     useTimer.addEventListener('change', () => {
       timerSection.classList.toggle('hidden', !useTimer.checked);
-      if (useTimer.checked && timerRunning) {
-        countdown.classList.remove('hidden');
-        document.getElementById('timerInputs').classList.add('hidden');
-      } else if (useTimer.checked && !timerRunning) {
-        countdown.classList.add('hidden');
-        document.getElementById('timerInputs').classList.remove('hidden');
-      }
     });
 
     const client = mqtt.connect(`wss://${MQTT_HOST}:8884/mqtt`, {
