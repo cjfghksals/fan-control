@@ -14,6 +14,14 @@
       background: #f0f2f5; gap: 20px; padding: 30px;
     }
     h2 { font-size: 1.4rem; color: #333; }
+    #tempDisplay {
+      position: fixed; top: 16px; right: 16px;
+      background: white; border-radius: 12px;
+      padding: 8px 14px; font-size: 0.95rem;
+      font-weight: bold; color: #333;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    #tempDisplay span { color: #f44336; }
     .card {
       background: white; border-radius: 16px;
       padding: 20px; width: 100%; max-width: 360px;
@@ -99,6 +107,7 @@
   </style>
 </head>
 <body>
+  <div id="tempDisplay">🌡 <span id="tempVal">--</span>°C</div>
   <h2>팬 제어</h2>
 
   <div class="card">
@@ -170,6 +179,7 @@
     const TOPIC_CTRL   = 'fan/control';
     const TOPIC_STATUS = 'fan/status';
     const TOPIC_TIMER  = 'fan/timer';
+    const TOPIC_TEMP   = 'fan/temp';
 
     const dot             = document.getElementById('dot');
     const statusText      = document.getElementById('statusText');
@@ -222,6 +232,7 @@
       mqttReady = true;
       client.subscribe(TOPIC_STATUS);
       client.subscribe(TOPIC_TIMER);
+      client.subscribe(TOPIC_TEMP);
       updateButtons();
     });
 
@@ -236,6 +247,10 @@
 
     client.on('message', (topic, payload) => {
       const msg = payload.toString();
+
+      if (topic === TOPIC_TEMP) {
+        document.getElementById('tempVal').textContent = msg;
+      }
 
       if (topic === TOPIC_STATUS) {
         const newState = msg === '1';
