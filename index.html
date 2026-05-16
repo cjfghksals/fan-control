@@ -5,36 +5,138 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>팬 제어</title>
   <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      height: 100vh; font-family: sans-serif; gap: 20px;
+      min-height: 100vh; font-family: sans-serif;
+      background: #f0f2f5; gap: 20px; padding: 30px;
+    }
+    h2 { font-size: 1.4rem; color: #333; }
+
+    .card {
+      background: white; border-radius: 16px;
+      padding: 20px; width: 100%; max-width: 360px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+
+    .device-info {
+      text-align: center;
+      font-size: 0.9rem; color: #888;
+    }
+    .device-name {
+      font-size: 1rem; font-weight: bold;
+      color: #333; margin-top: 4px;
+    }
+    .dot {
+      display: inline-block; width: 8px; height: 8px;
+      border-radius: 50%; background: #ccc;
+      margin-right: 6px; vertical-align: middle;
+    }
+    .dot.on { background: #4CAF50; }
+
+    .btn-row {
+      display: flex; gap: 12px; margin-top: 8px;
     }
     button {
-      width: 160px; height: 60px;
-      font-size: 1.2rem; border-radius: 12px;
-      border: none; cursor: pointer; color: white;
+      flex: 1; height: 54px; font-size: 1rem;
+      border-radius: 12px; border: none;
+      cursor: pointer; color: white; font-weight: bold;
+      transition: opacity 0.2s;
     }
+    button:disabled { opacity: 0.35; cursor: default; }
     #connectBtn { background: #4CAF50; }
     #onBtn      { background: #2196F3; }
     #offBtn     { background: #f44336; }
-    button:disabled { opacity: 0.4; cursor: default; }
-    #status { color: gray; font-size: 0.9rem; }
+
+    .section-title {
+      font-size: 0.85rem; color: #888;
+      margin-bottom: 12px; font-weight: bold;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    .timer-inputs {
+      display: flex; gap: 8px; align-items: center;
+      justify-content: center;
+    }
+    .time-unit { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .time-unit label { font-size: 0.75rem; color: #888; }
+    .time-unit input {
+      width: 70px; height: 48px; font-size: 1.3rem;
+      text-align: center; border: 1.5px solid #ddd;
+      border-radius: 10px; outline: none;
+    }
+    .time-unit input:focus { border-color: #2196F3; }
+    .time-sep { font-size: 1.4rem; color: #aaa; margin-top: 16px; }
+
+    #timerBtn {
+      width: 100%; margin-top: 14px;
+      background: #9C27B0; height: 48px;
+      font-size: 1rem;
+    }
+    #timerBtn.cancel { background: #FF5722; }
+
+    #countdown {
+      text-align: center; font-size: 1.6rem;
+      font-weight: bold; color: #2196F3;
+      min-height: 36px; margin-top: 10px;
+      letter-spacing: 2px;
+    }
   </style>
 </head>
 <body>
   <h2>팬 제어</h2>
-  <p id="status">연결 안됨</p>
-  <button id="connectBtn">블루투스 연결</button>
-  <button id="onBtn" disabled>팬 ON</button>
-  <button id="offBtn" disabled>팬 OFF</button>
+
+  <div class="card">
+    <div class="device-info">
+      <span class="dot" id="dot"></span>
+      <span id="statusText">연결 안됨</span>
+      <div class="device-name" id="deviceName">—</div>
+    </div>
+    <div class="btn-row" style="margin-top:16px;">
+      <button id="connectBtn">연결</button>
+      <button id="onBtn" disabled>팬 ON</button>
+      <button id="offBtn" disabled>팬 OFF</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">타이머</div>
+    <div class="timer-inputs">
+      <div class="time-unit">
+        <input type="number" id="hours" min="0" max="23" value="0" placeholder="0">
+        <label>시간</label>
+      </div>
+      <span class="time-sep">:</span>
+      <div class="time-unit">
+        <input type="number" id="minutes" min="0" max="59" value="0" placeholder="0">
+        <label>분</label>
+      </div>
+      <span class="time-sep">:</span>
+      <div class="time-unit">
+        <input type="number" id="seconds" min="0" max="59" value="0" placeholder="0">
+        <label>초</label>
+      </div>
+    </div>
+    <button id="timerBtn" disabled>타이머 시작</button>
+    <div id="countdown"></div>
+  </div>
 
   <script>
     const SERVICE_UUID = '0000fff0-0000-1000-8000-00805f9b34fb';
     const CHAR_UUID    = '0000fff2-0000-1000-8000-00805f9b34fb';
 
     let characteristic = null;
-    const status = document.getElementById('status');
+    let timerInterval  = null;
+    let remaining      = 0;
+
+    const dot        = document.getElementById('dot');
+    const statusText = document.getElementById('statusText');
+    const deviceName = document.getElementById('deviceName');
+    const onBtn      = document.getElementById('onBtn');
+    const offBtn     = document.getElementById('offBtn');
+    const timerBtn   = document.getElementById('timerBtn');
+    const countdown  = document.getElementById('countdown');
 
     document.getElementById('connectBtn').addEventListener('click', async () => {
       try {
@@ -46,11 +148,25 @@
         const service = await server.getPrimaryService(SERVICE_UUID);
         characteristic = await service.getCharacteristic(CHAR_UUID);
 
-        status.textContent = '연결됨: ' + device.name;
-        document.getElementById('onBtn').disabled  = false;
-        document.getElementById('offBtn').disabled = false;
+        dot.classList.add('on');
+        statusText.textContent = '연결됨';
+        deviceName.textContent = device.name || '이름 없음';
+        onBtn.disabled  = false;
+        offBtn.disabled = false;
+        timerBtn.disabled = false;
+
+        device.addEventListener('gattserverdisconnected', () => {
+          dot.classList.remove('on');
+          statusText.textContent = '연결 끊김';
+          deviceName.textContent = '—';
+          characteristic = null;
+          onBtn.disabled  = true;
+          offBtn.disabled = true;
+          timerBtn.disabled = true;
+          clearTimerInterval();
+        });
       } catch (e) {
-        status.textContent = '연결 실패: ' + e.message;
+        statusText.textContent = '연결 실패: ' + e.message;
       }
     });
 
@@ -59,8 +175,50 @@
         await characteristic.writeValue(new TextEncoder().encode(val));
     }
 
-    document.getElementById('onBtn').addEventListener('click',  () => send('1'));
-    document.getElementById('offBtn').addEventListener('click', () => send('0'));
+    onBtn.addEventListener('click', () => { stopTimer(); send('1'); });
+    offBtn.addEventListener('click', () => { stopTimer(); send('0'); });
+
+    timerBtn.addEventListener('click', () => {
+      if (timerInterval) { stopTimer(); return; }
+
+      const h = parseInt(document.getElementById('hours').value)   || 0;
+      const m = parseInt(document.getElementById('minutes').value) || 0;
+      const s = parseInt(document.getElementById('seconds').value) || 0;
+      remaining = h * 3600 + m * 60 + s;
+      if (remaining <= 0) return;
+
+      send('1');
+      timerBtn.textContent = '타이머 취소';
+      timerBtn.classList.add('cancel');
+      updateCountdown();
+
+      timerInterval = setInterval(() => {
+        remaining--;
+        updateCountdown();
+        if (remaining <= 0) {
+          send('0');
+          stopTimer();
+        }
+      }, 1000);
+    });
+
+    function updateCountdown() {
+      const h = String(Math.floor(remaining / 3600)).padStart(2, '0');
+      const m = String(Math.floor((remaining % 3600) / 60)).padStart(2, '0');
+      const s = String(remaining % 60).padStart(2, '0');
+      countdown.textContent = `${h}:${m}:${s}`;
+    }
+
+    function stopTimer() {
+      clearTimerInterval();
+      countdown.textContent = '';
+      timerBtn.textContent = '타이머 시작';
+      timerBtn.classList.remove('cancel');
+    }
+
+    function clearTimerInterval() {
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    }
   </script>
 </body>
 </html>
