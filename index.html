@@ -85,6 +85,17 @@
       padding: 10px 0; letter-spacing: 2px;
     }
     .hidden { display: none !important; }
+    #logBox {
+      height: 160px; overflow-y: auto;
+      background: #f8f8f8; border-radius: 10px;
+      padding: 10px 12px; font-size: 0.82rem;
+      color: #444; display: flex; flex-direction: column; gap: 5px;
+    }
+    .log-entry { display: flex; gap: 8px; align-items: flex-start; }
+    .log-time { color: #aaa; white-space: nowrap; flex-shrink: 0; }
+    .log-on  { color: #2196F3; font-weight: bold; }
+    .log-off { color: #f44336; font-weight: bold; }
+    .log-timer { color: #9C27B0; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -145,6 +156,11 @@
     </div>
 
     <button id="timerBtn" class="hidden" disabled>타이머 시작</button>
+  </div>
+
+  <div class="card">
+    <div class="section-title">실행 로그</div>
+    <div id="logBox"></div>
   </div>
 
   <script>
@@ -222,13 +238,18 @@
       const msg = payload.toString();
 
       if (topic === TOPIC_STATUS) {
-        fanOn = msg === '1';
+        const newState = msg === '1';
+        if (newState !== fanOn) {
+          addLog(newState ? '팬 켜짐' : '팬 꺼짐', newState ? 'on' : 'off');
+        }
+        fanOn = newState;
         updateButtons();
       }
 
       if (topic === TOPIC_TIMER) {
         const secs = parseInt(msg);
         if (secs > 0) {
+          if (!timerRunning) addLog(`타이머 시작 (${formatTime(secs)})`, 'timer');
           timerRunning = true;
           setRadiosDisabled(true);
           timerBtn.classList.remove('hidden');
@@ -253,6 +274,7 @@
             document.getElementById('offTimeInputs').classList.add('hidden');
           }
         } else {
+          if (timerRunning) addLog('타이머 종료', 'timer');
           timerRunning = false;
           setRadiosDisabled(false);
           timerBtn.textContent = '타이머 시작';
@@ -316,6 +338,17 @@
       if (total <= 0) return;
       publish('T' + total);
     });
+
+    function addLog(msg, type) {
+      const box  = document.getElementById('logBox');
+      const now  = new Date();
+      const time = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `<span class="log-time">${time}</span><span class="log-${type}">${msg}</span>`;
+      box.appendChild(entry);
+      box.scrollTop = box.scrollHeight;
+    }
 
     function formatTime(secs) {
       const h = String(Math.floor(secs / 3600)).padStart(2, '0');
