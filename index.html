@@ -339,16 +339,37 @@
       publish('T' + total);
     });
 
-    function addLog(msg, type) {
-      const box  = document.getElementById('logBox');
-      const now  = new Date();
-      const time = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const MAX_LOGS = 50;
+
+    function loadLogs() {
+      const saved = JSON.parse(localStorage.getItem('fanLogs') || '[]');
+      saved.forEach(({ time, msg, type }) => renderLog(time, msg, type));
+    }
+
+    function saveLogs(time, msg, type) {
+      const logs = JSON.parse(localStorage.getItem('fanLogs') || '[]');
+      logs.push({ time, msg, type });
+      if (logs.length > MAX_LOGS) logs.splice(0, logs.length - MAX_LOGS);
+      localStorage.setItem('fanLogs', JSON.stringify(logs));
+    }
+
+    function renderLog(time, msg, type) {
+      const box = document.getElementById('logBox');
       const entry = document.createElement('div');
       entry.className = 'log-entry';
       entry.innerHTML = `<span class="log-time">${time}</span><span class="log-${type}">${msg}</span>`;
       box.appendChild(entry);
       box.scrollTop = box.scrollHeight;
     }
+
+    function addLog(msg, type) {
+      const now  = new Date();
+      const time = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      renderLog(time, msg, type);
+      saveLogs(time, msg, type);
+    }
+
+    loadLogs();
 
     function formatTime(secs) {
       const h = String(Math.floor(secs / 3600)).padStart(2, '0');
