@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>팬 제어</title>
+  <style>
+    body {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 100vh; font-family: sans-serif; gap: 20px;
+    }
+    button {
+      width: 160px; height: 60px;
+      font-size: 1.2rem; border-radius: 12px;
+      border: none; cursor: pointer; color: white;
+    }
+    #connectBtn { background: #4CAF50; }
+    #onBtn      { background: #2196F3; }
+    #offBtn     { background: #f44336; }
+    button:disabled { opacity: 0.4; cursor: default; }
+    #status { color: gray; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h2>팬 제어</h2>
+  <p id="status">연결 안됨</p>
+  <button id="connectBtn">블루투스 연결</button>
+  <button id="onBtn" disabled>팬 ON</button>
+  <button id="offBtn" disabled>팬 OFF</button>
+
+  <script>
+    const SERVICE_UUID = '0000fff0-0000-1000-8000-00805f9b34fb';
+    const CHAR_UUID    = '0000fff1-0000-1000-8000-00805f9b34fb';
+
+    let characteristic = null;
+    const status = document.getElementById('status');
+
+    document.getElementById('connectBtn').addEventListener('click', async () => {
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ services: [SERVICE_UUID] }]
+        });
+        const server  = await device.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        characteristic = await service.getCharacteristic(CHAR_UUID);
+
+        status.textContent = '연결됨: ' + device.name;
+        document.getElementById('onBtn').disabled  = false;
+        document.getElementById('offBtn').disabled = false;
+      } catch (e) {
+        status.textContent = '연결 실패: ' + e.message;
+      }
+    });
+
+    async function send(val) {
+      if (characteristic)
+        await characteristic.writeValue(new TextEncoder().encode(val));
+    }
+
+    document.getElementById('onBtn').addEventListener('click',  () => send('1'));
+    document.getElementById('offBtn').addEventListener('click', () => send('0'));
+  </script>
+</body>
+</html>
