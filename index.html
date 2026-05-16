@@ -38,10 +38,15 @@
     #onBtn  { background: #2196F3; }
     #offBtn { background: #f44336; }
     .section-title {
-      font-size: 0.85rem; color: #888;
-      margin-bottom: 12px; font-weight: bold;
-      text-transform: uppercase; letter-spacing: 0.5px;
+      font-size: 0.85rem; color: #888; margin-bottom: 12px;
+      font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;
     }
+    .timer-toggle {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 14px; cursor: pointer;
+    }
+    .timer-toggle input { width: 18px; height: 18px; cursor: pointer; }
+    .timer-toggle label { font-size: 0.95rem; color: #444; cursor: pointer; }
     .timer-inputs {
       display: flex; gap: 8px; align-items: center; justify-content: center;
     }
@@ -56,7 +61,7 @@
     .time-sep { font-size: 1.4rem; color: #aaa; margin-top: 16px; }
     #timerBtn {
       width: 100%; margin-top: 14px;
-      background: #9C27B0; height: 48px; font-size: 1rem;
+      background: #9C27B0; height: 48px; font-size: 1rem; flex: none;
     }
     #timerBtn.cancel { background: #FF5722; }
     #countdown {
@@ -64,6 +69,7 @@
       font-weight: bold; color: #2196F3;
       min-height: 36px; margin-top: 10px; letter-spacing: 2px;
     }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
@@ -76,38 +82,46 @@
       <div class="device-name">NodeMCU 팬</div>
     </div>
     <div class="btn-row">
-      <button id="onBtn" disabled>팬 ON</button>
+      <button id="onBtn"  disabled>팬 ON</button>
       <button id="offBtn" disabled>팬 OFF</button>
     </div>
   </div>
 
   <div class="card">
     <div class="section-title">타이머</div>
-    <div class="timer-inputs">
-      <div class="time-unit">
-        <input type="number" id="hours" min="0" max="23" value="0">
-        <label>시간</label>
-      </div>
-      <span class="time-sep">:</span>
-      <div class="time-unit">
-        <input type="number" id="minutes" min="0" max="59" value="0">
-        <label>분</label>
-      </div>
-      <span class="time-sep">:</span>
-      <div class="time-unit">
-        <input type="number" id="seconds" min="0" max="59" value="0">
-        <label>초</label>
-      </div>
+    <div class="timer-toggle">
+      <input type="checkbox" id="useTimer">
+      <label for="useTimer">타이머 사용</label>
     </div>
-    <button id="timerBtn" disabled>타이머 시작</button>
-    <div id="countdown"></div>
+    <div id="timerSection" class="hidden">
+      <div class="timer-inputs">
+        <div class="time-unit">
+          <input type="number" id="hours" min="0" max="23" value="0">
+          <label>시간</label>
+        </div>
+        <span class="time-sep">:</span>
+        <div class="time-unit">
+          <input type="number" id="minutes" min="0" max="59" value="0">
+          <label>분</label>
+        </div>
+        <span class="time-sep">:</span>
+        <div class="time-unit">
+          <input type="number" id="seconds" min="0" max="59" value="0">
+          <label>초</label>
+        </div>
+      </div>
+      <button id="timerBtn" disabled>타이머 시작</button>
+      <div id="countdown"></div>
+    </div>
   </div>
 
   <script>
     const MQTT_HOST  = 'f228bba902564c449137624b48611c35.s1.eu.hivemq.cloud';
     const MQTT_USER  = 'cjfghksals';
     const MQTT_PASS  = 'Ehdals6469!';
-    const MQTT_TOPIC = 'fan/control';
+    const TOPIC_CTRL   = 'fan/control';
+    const TOPIC_STATUS = 'fan/status';
+    const TOPIC_TIMER  = 'fan/timer';
 
     const dot        = document.getElementById('dot');
     const statusText = document.getElementById('statusText');
@@ -115,9 +129,15 @@
     const offBtn     = document.getElementById('offBtn');
     const timerBtn   = document.getElementById('timerBtn');
     const countdown  = document.getElementById('countdown');
+    const useTimer   = document.getElementById('useTimer');
+    const timerSection = document.getElementById('timerSection');
 
-    let timerInterval = null;
-    let remaining     = 0;
+    let fanOn    = false;
+    let mqttReady = false;
+
+    useTimer.addEventListener('change', () => {
+      timerSection.classList.toggle('hidden', !useTimer.checked);
+    });
 
     const client = mqtt.connect(`wss://${MQTT_HOST}:8884/mqtt`, {
       username: MQTT_USER,
@@ -127,70 +147,73 @@
     client.on('connect', () => {
       dot.classList.add('on');
       statusText.textContent = '연결됨';
-      onBtn.disabled   = false;
-      offBtn.disabled  = false;
-      timerBtn.disabled = false;
+      mqttReady = true;
+      client.subscribe(TOPIC_STATUS);
+      client.subscribe(TOPIC_TIMER);
+      updateButtons();
     });
 
-    client.on('error', () => {
-      statusText.textContent = '연결 실패';
-    });
+    client.on('error', () => { statusText.textContent = '연결 실패'; });
 
-    client.on('disconnect', () => {
+    client.on('offline', () => {
       dot.classList.remove('on');
       statusText.textContent = '연결 끊김';
-      onBtn.disabled   = true;
-      offBtn.disabled  = true;
-      timerBtn.disabled = true;
+      mqttReady = false;
+      updateButtons();
     });
 
-    function publish(msg) {
-      client.publish(MQTT_TOPIC, msg);
+    client.on('message', (topic, payload) => {
+      const msg = payload.toString();
+
+      if (topic === TOPIC_STATUS) {
+        fanOn = msg === '1';
+        updateButtons();
+      }
+
+      if (topic === TOPIC_TIMER) {
+        const secs = parseInt(msg);
+        if (secs > 0) {
+          countdown.textContent = formatTime(secs);
+          timerBtn.textContent  = '타이머 취소';
+          timerBtn.classList.add('cancel');
+        } else {
+          countdown.textContent = '';
+          timerBtn.textContent  = '타이머 시작';
+          timerBtn.classList.remove('cancel');
+        }
+      }
+    });
+
+    function updateButtons() {
+      const ready = mqttReady;
+      onBtn.disabled   = !ready || fanOn;
+      offBtn.disabled  = !ready || !fanOn;
+      timerBtn.disabled = !ready;
     }
 
-    onBtn.addEventListener('click', () => {
-      stopTimer();
-      publish('1');
-    });
+    function publish(msg) { client.publish(TOPIC_CTRL, msg); }
 
-    offBtn.addEventListener('click', () => {
-      stopTimer();
-      publish('0');
-    });
+    onBtn.addEventListener('click', () => publish('1'));
+    offBtn.addEventListener('click', () => publish('0'));
 
     timerBtn.addEventListener('click', () => {
-      if (timerInterval) { stopTimer(); publish('0'); return; }
-
+      if (timerBtn.classList.contains('cancel')) {
+        publish('0');
+        return;
+      }
       const h = parseInt(document.getElementById('hours').value)   || 0;
       const m = parseInt(document.getElementById('minutes').value) || 0;
       const s = parseInt(document.getElementById('seconds').value) || 0;
-      remaining = h * 3600 + m * 60 + s;
-      if (remaining <= 0) return;
-
-      publish('T' + remaining);
-      timerBtn.textContent = '타이머 취소';
-      timerBtn.classList.add('cancel');
-      updateCountdown();
-
-      timerInterval = setInterval(() => {
-        remaining--;
-        updateCountdown();
-        if (remaining <= 0) stopTimer();
-      }, 1000);
+      const total = h * 3600 + m * 60 + s;
+      if (total <= 0) return;
+      publish('T' + total);
     });
 
-    function updateCountdown() {
-      const h = String(Math.floor(remaining / 3600)).padStart(2, '0');
-      const m = String(Math.floor((remaining % 3600) / 60)).padStart(2, '0');
-      const s = String(remaining % 60).padStart(2, '0');
-      countdown.textContent = `${h}:${m}:${s}`;
-    }
-
-    function stopTimer() {
-      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-      countdown.textContent = '';
-      timerBtn.textContent  = '타이머 시작';
-      timerBtn.classList.remove('cancel');
+    function formatTime(secs) {
+      const h = String(Math.floor(secs / 3600)).padStart(2, '0');
+      const m = String(Math.floor((secs % 3600) / 60)).padStart(2, '0');
+      const s = String(secs % 60).padStart(2, '0');
+      return `${h}:${m}:${s}`;
     }
   </script>
 </body>
