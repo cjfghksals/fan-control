@@ -176,6 +176,7 @@
         if (secs > 0) {
           timerRunning = true;
           useTimer.checked = true;
+          useTimer.disabled = true;
           timerSection.classList.remove('hidden');
           countdown.textContent = formatTime(secs);
           countdown.classList.remove('hidden');
@@ -184,6 +185,7 @@
           timerBtn.classList.add('cancel');
         } else {
           timerRunning = false;
+          useTimer.disabled = false;
           countdown.textContent = '';
           countdown.classList.add('hidden');
           document.getElementById('timerInputs').classList.remove('hidden');
