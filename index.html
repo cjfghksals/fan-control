@@ -171,10 +171,23 @@
     let mqttReady    = false;
     let timerRunning = false;
 
+    // 저장된 모드 복원
+    const savedMode = localStorage.getItem('timerMode');
+    if (savedMode) {
+      const r = document.querySelector(`input[name="timerMode"][value="${savedMode}"]`);
+      if (r) {
+        r.checked = true;
+        timerInputsWrap.classList.toggle('hidden', savedMode !== 'timer');
+        offTimeWrap.classList.toggle('hidden', savedMode !== 'offtime');
+        timerBtn.classList.remove('hidden');
+      }
+    }
+
     // 라디오 변경
     document.querySelectorAll('input[name="timerMode"]').forEach(r => {
       r.addEventListener('change', () => {
         const mode = document.querySelector('input[name="timerMode"]:checked').value;
+        localStorage.setItem('timerMode', mode);
         timerInputsWrap.classList.toggle('hidden', mode !== 'timer');
         offTimeWrap.classList.toggle('hidden', mode !== 'offtime');
         timerBtn.classList.remove('hidden');
