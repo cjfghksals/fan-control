@@ -175,11 +175,17 @@
         await characteristic.writeValue(new TextEncoder().encode(val));
     }
 
-    onBtn.addEventListener('click', () => { stopTimer(); send('1'); });
-    offBtn.addEventListener('click', () => { stopTimer(); send('0'); });
+    onBtn.addEventListener('click', () => {
+      stopTimer();
+      send('1\n');
+    });
+    offBtn.addEventListener('click', () => {
+      stopTimer();
+      send('0\n');
+    });
 
     timerBtn.addEventListener('click', () => {
-      if (timerInterval) { stopTimer(); return; }
+      if (timerInterval) { stopTimer(); send('0\n'); return; }
 
       const h = parseInt(document.getElementById('hours').value)   || 0;
       const m = parseInt(document.getElementById('minutes').value) || 0;
@@ -187,18 +193,18 @@
       remaining = h * 3600 + m * 60 + s;
       if (remaining <= 0) return;
 
-      send('1');
+      // 아두이노에 초 단위로 전송 — 아두이노가 직접 타이머 관리
+      send('T' + remaining + '\n');
+
       timerBtn.textContent = '타이머 취소';
       timerBtn.classList.add('cancel');
       updateCountdown();
 
+      // 웹에서는 표시용으로만 카운트다운
       timerInterval = setInterval(() => {
         remaining--;
         updateCountdown();
-        if (remaining <= 0) {
-          send('0');
-          stopTimer();
-        }
+        if (remaining <= 0) stopTimer();
       }, 1000);
     });
 
