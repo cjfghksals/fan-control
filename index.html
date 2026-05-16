@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>팬 제어</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -13,31 +14,20 @@
       background: #f0f2f5; gap: 20px; padding: 30px;
     }
     h2 { font-size: 1.4rem; color: #333; }
-
     .card {
       background: white; border-radius: 16px;
       padding: 20px; width: 100%; max-width: 360px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.08);
     }
-
-    .device-info {
-      text-align: center;
-      font-size: 0.9rem; color: #888;
-    }
-    .device-name {
-      font-size: 1rem; font-weight: bold;
-      color: #333; margin-top: 4px;
-    }
+    .device-info { text-align: center; font-size: 0.9rem; color: #888; }
+    .device-name { font-size: 1rem; font-weight: bold; color: #333; margin-top: 4px; }
     .dot {
       display: inline-block; width: 8px; height: 8px;
       border-radius: 50%; background: #ccc;
       margin-right: 6px; vertical-align: middle;
     }
     .dot.on { background: #4CAF50; }
-
-    .btn-row {
-      display: flex; gap: 12px; margin-top: 8px;
-    }
+    .btn-row { display: flex; gap: 12px; margin-top: 16px; }
     button {
       flex: 1; height: 54px; font-size: 1rem;
       border-radius: 12px; border: none;
@@ -45,19 +35,15 @@
       transition: opacity 0.2s;
     }
     button:disabled { opacity: 0.35; cursor: default; }
-    #connectBtn { background: #4CAF50; }
-    #onBtn      { background: #2196F3; }
-    #offBtn     { background: #f44336; }
-
+    #onBtn  { background: #2196F3; }
+    #offBtn { background: #f44336; }
     .section-title {
       font-size: 0.85rem; color: #888;
       margin-bottom: 12px; font-weight: bold;
       text-transform: uppercase; letter-spacing: 0.5px;
     }
-
     .timer-inputs {
-      display: flex; gap: 8px; align-items: center;
-      justify-content: center;
+      display: flex; gap: 8px; align-items: center; justify-content: center;
     }
     .time-unit { display: flex; flex-direction: column; align-items: center; gap: 4px; }
     .time-unit label { font-size: 0.75rem; color: #888; }
@@ -68,19 +54,15 @@
     }
     .time-unit input:focus { border-color: #2196F3; }
     .time-sep { font-size: 1.4rem; color: #aaa; margin-top: 16px; }
-
     #timerBtn {
       width: 100%; margin-top: 14px;
-      background: #9C27B0; height: 48px;
-      font-size: 1rem;
+      background: #9C27B0; height: 48px; font-size: 1rem;
     }
     #timerBtn.cancel { background: #FF5722; }
-
     #countdown {
       text-align: center; font-size: 1.6rem;
       font-weight: bold; color: #2196F3;
-      min-height: 36px; margin-top: 10px;
-      letter-spacing: 2px;
+      min-height: 36px; margin-top: 10px; letter-spacing: 2px;
     }
   </style>
 </head>
@@ -90,11 +72,10 @@
   <div class="card">
     <div class="device-info">
       <span class="dot" id="dot"></span>
-      <span id="statusText">연결 안됨</span>
-      <div class="device-name" id="deviceName">—</div>
+      <span id="statusText">연결 중...</span>
+      <div class="device-name">NodeMCU 팬</div>
     </div>
-    <div class="btn-row" style="margin-top:16px;">
-      <button id="connectBtn">연결</button>
+    <div class="btn-row">
       <button id="onBtn" disabled>팬 ON</button>
       <button id="offBtn" disabled>팬 OFF</button>
     </div>
@@ -104,17 +85,17 @@
     <div class="section-title">타이머</div>
     <div class="timer-inputs">
       <div class="time-unit">
-        <input type="number" id="hours" min="0" max="23" value="0" placeholder="0">
+        <input type="number" id="hours" min="0" max="23" value="0">
         <label>시간</label>
       </div>
       <span class="time-sep">:</span>
       <div class="time-unit">
-        <input type="number" id="minutes" min="0" max="59" value="0" placeholder="0">
+        <input type="number" id="minutes" min="0" max="59" value="0">
         <label>분</label>
       </div>
       <span class="time-sep">:</span>
       <div class="time-unit">
-        <input type="number" id="seconds" min="0" max="59" value="0" placeholder="0">
+        <input type="number" id="seconds" min="0" max="59" value="0">
         <label>초</label>
       </div>
     </div>
@@ -123,69 +104,62 @@
   </div>
 
   <script>
-    const SERVICE_UUID = '0000fff0-0000-1000-8000-00805f9b34fb';
-    const CHAR_UUID    = '0000fff2-0000-1000-8000-00805f9b34fb';
-
-    let characteristic = null;
-    let timerInterval  = null;
-    let remaining      = 0;
+    const MQTT_HOST  = 'f228bba902564c449137624b48611c35.s1.eu.hivemq.cloud';
+    const MQTT_USER  = 'cjfghksals';
+    const MQTT_PASS  = 'Ehdals6469!';
+    const MQTT_TOPIC = 'fan/control';
 
     const dot        = document.getElementById('dot');
     const statusText = document.getElementById('statusText');
-    const deviceName = document.getElementById('deviceName');
     const onBtn      = document.getElementById('onBtn');
     const offBtn     = document.getElementById('offBtn');
     const timerBtn   = document.getElementById('timerBtn');
     const countdown  = document.getElementById('countdown');
 
-    document.getElementById('connectBtn').addEventListener('click', async () => {
-      try {
-        const device = await navigator.bluetooth.requestDevice({
-          acceptAllDevices: true,
-          optionalServices: [SERVICE_UUID]
-        });
-        const server  = await device.gatt.connect();
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        characteristic = await service.getCharacteristic(CHAR_UUID);
+    let timerInterval = null;
+    let remaining     = 0;
 
-        dot.classList.add('on');
-        statusText.textContent = '연결됨';
-        deviceName.textContent = device.name || '이름 없음';
-        onBtn.disabled  = false;
-        offBtn.disabled = false;
-        timerBtn.disabled = false;
-
-        device.addEventListener('gattserverdisconnected', () => {
-          dot.classList.remove('on');
-          statusText.textContent = '연결 끊김';
-          deviceName.textContent = '—';
-          characteristic = null;
-          onBtn.disabled  = true;
-          offBtn.disabled = true;
-          timerBtn.disabled = true;
-          clearTimerInterval();
-        });
-      } catch (e) {
-        statusText.textContent = '연결 실패: ' + e.message;
-      }
+    const client = mqtt.connect(`wss://${MQTT_HOST}:8884/mqtt`, {
+      username: MQTT_USER,
+      password: MQTT_PASS,
     });
 
-    async function send(val) {
-      if (characteristic)
-        await characteristic.writeValue(new TextEncoder().encode(val));
+    client.on('connect', () => {
+      dot.classList.add('on');
+      statusText.textContent = '연결됨';
+      onBtn.disabled   = false;
+      offBtn.disabled  = false;
+      timerBtn.disabled = false;
+    });
+
+    client.on('error', () => {
+      statusText.textContent = '연결 실패';
+    });
+
+    client.on('disconnect', () => {
+      dot.classList.remove('on');
+      statusText.textContent = '연결 끊김';
+      onBtn.disabled   = true;
+      offBtn.disabled  = true;
+      timerBtn.disabled = true;
+    });
+
+    function publish(msg) {
+      client.publish(MQTT_TOPIC, msg);
     }
 
     onBtn.addEventListener('click', () => {
       stopTimer();
-      send('1\n');
+      publish('1');
     });
+
     offBtn.addEventListener('click', () => {
       stopTimer();
-      send('0\n');
+      publish('0');
     });
 
     timerBtn.addEventListener('click', () => {
-      if (timerInterval) { stopTimer(); send('0\n'); return; }
+      if (timerInterval) { stopTimer(); publish('0'); return; }
 
       const h = parseInt(document.getElementById('hours').value)   || 0;
       const m = parseInt(document.getElementById('minutes').value) || 0;
@@ -193,14 +167,11 @@
       remaining = h * 3600 + m * 60 + s;
       if (remaining <= 0) return;
 
-      // 아두이노에 초 단위로 전송 — 아두이노가 직접 타이머 관리
-      send('T' + remaining + '\n');
-
+      publish('T' + remaining);
       timerBtn.textContent = '타이머 취소';
       timerBtn.classList.add('cancel');
       updateCountdown();
 
-      // 웹에서는 표시용으로만 카운트다운
       timerInterval = setInterval(() => {
         remaining--;
         updateCountdown();
@@ -216,14 +187,10 @@
     }
 
     function stopTimer() {
-      clearTimerInterval();
-      countdown.textContent = '';
-      timerBtn.textContent = '타이머 시작';
-      timerBtn.classList.remove('cancel');
-    }
-
-    function clearTimerInterval() {
       if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+      countdown.textContent = '';
+      timerBtn.textContent  = '타이머 시작';
+      timerBtn.classList.remove('cancel');
     }
   </script>
 </body>
