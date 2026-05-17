@@ -3,8 +3,8 @@
 #include <Wire.h>
 #include <Adafruit_BMP085.h>
 
-const char* WIFI_SSID      = "KT_GiGA_16C3";
-const char* WIFI_PASSWORD  = "0fb90dh360";
+const char* WIFI_SSID      = "iptime";
+const char* WIFI_PASSWORD  = "";
 const char* MQTT_HOST      = "f228bba902564c449137624b48611c35.s1.eu.hivemq.cloud";
 const int   MQTT_PORT      = 8883;
 const char* MQTT_USER      = "cjfghksals";
@@ -14,7 +14,6 @@ const char* TOPIC_STATUS   = "fan/status";
 const char* TOPIC_TIMER    = "fan/timer";
 const char* TOPIC_TEMP     = "fan/temp";
 const char* TOPIC_PRESSURE = "fan/pressure";
-const char* TOPIC_TEMPMODE = "fan/tempmode";
 
 #define FAN_PIN D1
 #define SDA_PIN D2
@@ -28,10 +27,6 @@ bool  timerActive    = false;
 unsigned long timerRemain = 0;
 unsigned long lastSecond  = 0;
 unsigned long lastSensor  = 0;
-
-bool  tempModeActive  = false;
-float activationTemp  = 0;
-float targetTemp      = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -55,7 +50,6 @@ void loop() {
   if (!mqtt.connected()) reconnectMQTT();
   mqtt.loop();
 
-  // 타이머
   if (timerActive && millis() - lastSecond >= 1000) {
     lastSecond = millis();
     if (timerRemain > 0) {
@@ -71,7 +65,6 @@ void loop() {
     }
   }
 
-  // 센서 10초마다 측정
   if (millis() - lastSensor >= 10000) {
     lastSensor = millis();
     publishSensor();
@@ -84,20 +77,6 @@ void publishSensor() {
   mqtt.publish(TOPIC_TEMP,     String(temp, 1).c_str(), true);
   mqtt.publish(TOPIC_PRESSURE, String(press, 1).c_str(), true);
   Serial.println("온도: " + String(temp, 1) + "°C  기압: " + String(press, 1) + "hPa\n");
-
-  // 목표 온도 모드
-  if (tempModeActive) {
-    bool fanOn = digitalRead(FAN_PIN);
-    if (temp >= activationTemp && !fanOn) {
-      digitalWrite(FAN_PIN, HIGH);
-      mqtt.publish(TOPIC_STATUS, "1", true);
-      Serial.println("온도 모드 - 팬 ON (현재: " + String(temp, 1) + "°C)\n");
-    } else if (temp <= targetTemp && fanOn) {
-      digitalWrite(FAN_PIN, LOW);
-      mqtt.publish(TOPIC_STATUS, "0", true);
-      Serial.println("온도 모드 - 팬 OFF (현재: " + String(temp, 1) + "°C)\n");
-    }
-  }
 }
 
 void onMessage(char* topic, byte* payload, unsigned int length) {
@@ -118,29 +97,12 @@ void onMessage(char* topic, byte* payload, unsigned int length) {
   } else if (msg.startsWith("T")) {
     timerRemain = msg.substring(1).toInt();
     if (timerRemain > 0) {
-      tempModeActive = false;
-      mqtt.publish(TOPIC_TEMPMODE, "0", true);
       digitalWrite(FAN_PIN, HIGH);
       timerActive = true;
       lastSecond  = millis();
       mqtt.publish(TOPIC_STATUS, "1", true);
       mqtt.publish(TOPIC_TIMER,  String(timerRemain).c_str(), true);
     }
-  } else if (msg.startsWith("TEMP:")) {
-    int f = msg.indexOf(':');
-    int s = msg.indexOf(':', f + 1);
-    activationTemp = msg.substring(f + 1, s).toFloat();
-    targetTemp     = msg.substring(s + 1).toFloat();
-    tempModeActive = true;
-    timerActive    = false;
-    mqtt.publish(TOPIC_TIMER, "0", true);
-    String status = "1:" + String(activationTemp, 1) + ":" + String(targetTemp, 1);
-    mqtt.publish(TOPIC_TEMPMODE, status.c_str(), true);
-    Serial.println("온도 모드 시작 - 가동: " + String(activationTemp, 1) + "°C  목표: " + String(targetTemp, 1) + "°C\n");
-  } else if (msg == "TEMPSTOP") {
-    tempModeActive = false;
-    mqtt.publish(TOPIC_TEMPMODE, "0", true);
-    Serial.println("온도 모드 종료\n");
   }
 }
 
