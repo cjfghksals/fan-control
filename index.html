@@ -35,6 +35,8 @@
       margin-right: 6px; vertical-align: middle;
     }
     .dot.on { background: #4CAF50; }
+    .dot.fan-on  { background: #4CAF50; }
+    .dot.fan-off { background: #f44336; }
     .btn-row { display: flex; gap: 12px; margin-top: 16px; }
     button {
       flex: 1; height: 54px; font-size: 1rem;
@@ -116,6 +118,7 @@
     <div class="device-info">
       <span class="dot" id="dot"></span>
       <span id="statusText">연결 중...</span>
+      <span class="dot" id="fanDot"></span>
       <div class="device-name">NodeMCU 팬</div>
     </div>
     <div class="btn-row" id="btnRow">
@@ -202,6 +205,7 @@
     const TOPIC_TEMP_MODE = 'fan/temp_mode';
 
     const dot             = document.getElementById('dot');
+    const fanDot          = document.getElementById('fanDot');
     const statusText      = document.getElementById('statusText');
     const onBtn           = document.getElementById('onBtn');
     const offBtn          = document.getElementById('offBtn');
@@ -308,6 +312,8 @@
 
       if (topic === TOPIC_STATUS) {
         fanOn = msg === '1';
+        fanDot.classList.toggle('fan-on',  fanOn);
+        fanDot.classList.toggle('fan-off', !fanOn);
         updateButtons();
       }
 
