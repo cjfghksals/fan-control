@@ -31,6 +31,9 @@
 ---
 
 ## 2N3904 Pinout (flat face toward you, left to right)
+
+![2N3904 Pinout](2N3904.png)
+
 | Pin | Number |
 |-----|--------|
 | Emitter   | 1 |
