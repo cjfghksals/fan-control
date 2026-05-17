@@ -3,12 +3,12 @@
 #include <Wire.h>
 #include <Adafruit_BMP085.h>
 
-const char* WIFI_SSID       = "iptime";
-const char* WIFI_PASSWORD   = "";
-const char* MQTT_HOST       = "f228bba902564c449137624b48611c35.s1.eu.hivemq.cloud";
+const char* WIFI_SSID       = "YOUR_WIFI_SSID";
+const char* WIFI_PASSWORD   = "YOUR_WIFI_PASSWORD";
+const char* MQTT_HOST       = "YOUR_HIVEMQ_HOST";
 const int   MQTT_PORT       = 8883;
-const char* MQTT_USER       = "cjfghksals";
-const char* MQTT_PASSWORD   = "Ehdals6469!";
+const char* MQTT_USER       = "YOUR_MQTT_USER";
+const char* MQTT_PASSWORD   = "YOUR_MQTT_PASSWORD";
 const char* TOPIC_CONTROL   = "fan/control";
 const char* TOPIC_STATUS    = "fan/status";
 const char* TOPIC_TIMER     = "fan/timer";
