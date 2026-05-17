@@ -337,16 +337,18 @@
           }
         } else {
           timerRunning = false;
-          setRadiosDisabled(false);
-          timerBtn.textContent = '타이머 시작';
-          timerBtn.classList.remove('cancel');
+          if (!tempModeRunning) {
+            setRadiosDisabled(false);
+            timerBtn.textContent = '타이머 시작';
+            timerBtn.classList.remove('cancel');
 
-          countdown.textContent    = '';
-          countdownOff.textContent = '';
-          countdown.classList.add('hidden');
-          countdownOff.classList.add('hidden');
-          document.getElementById('timerInputs').classList.remove('hidden');
-          document.getElementById('offTimeInputs').classList.remove('hidden');
+            countdown.textContent    = '';
+            countdownOff.textContent = '';
+            countdown.classList.add('hidden');
+            countdownOff.classList.add('hidden');
+            document.getElementById('timerInputs').classList.remove('hidden');
+            document.getElementById('offTimeInputs').classList.remove('hidden');
+          }
         }
         updateButtons();
       }
