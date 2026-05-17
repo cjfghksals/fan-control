@@ -76,7 +76,7 @@ void loop() {
     }
   }
 
-  if (millis() - lastSensor >= 10000) {
+  if (millis() - lastSensor >= 1000) {
     lastSensor = millis();
     publishSensor();
   }
@@ -108,8 +108,9 @@ void onMessage(char* topic, byte* payload, unsigned int length) {
   if (String(topic) == TOPIC_TEMP_CTL) {
     if (msg == "0") {
       tempModeActive = false;
+      setFan(false);
       mqtt.publish(TOPIC_TEMP_MODE, "0", true);
-      Serial.println("온도 제어 모드 종료\n");
+      Serial.println("온도 제어 모드 종료 - 팬 OFF\n");
     } else {
       int sep = msg.indexOf(':');
       if (sep > 0) {
