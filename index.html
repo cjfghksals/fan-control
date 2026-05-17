@@ -410,6 +410,7 @@
       if (mode === 'tempctl') {
         if (timerBtn.classList.contains('cancel')) {
           client.publish(TOPIC_TEMP_CTL, '0');
+          publish('X');
           return;
         }
         const trigger = parseFloat(triggerTempInput.value);
@@ -423,7 +424,7 @@
       }
 
       if (timerBtn.classList.contains('cancel')) {
-        publish('0');
+        publish('X');
         return;
       }
 

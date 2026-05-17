@@ -108,9 +108,8 @@ void onMessage(char* topic, byte* payload, unsigned int length) {
   if (String(topic) == TOPIC_TEMP_CTL) {
     if (msg == "0") {
       tempModeActive = false;
-      setFan(false);
       mqtt.publish(TOPIC_TEMP_MODE, "0", true);
-      Serial.println("온도 제어 모드 종료 - 팬 OFF\n");
+      Serial.println("온도 제어 모드 종료\n");
     } else {
       int sep = msg.indexOf(':');
       if (sep > 0) {
@@ -136,6 +135,13 @@ void onMessage(char* topic, byte* payload, unsigned int length) {
     mqtt.publish(TOPIC_TEMP_MODE, "0", true);
     setFan(false);
     mqtt.publish(TOPIC_TIMER, "0", true);
+  } else if (msg == "X") {
+    timerActive    = false;
+    tempModeActive = false;
+    mqtt.publish(TOPIC_TEMP_MODE, "0", true);
+    mqtt.publish(TOPIC_TIMER,     "0", true);
+    mqtt.publish(TOPIC_STATUS, fanOn ? "1" : "0", true);
+    Serial.println("모드 취소 - 팬 상태 유지\n");
   } else if (msg.startsWith("T")) {
     timerRemain = msg.substring(1).toInt();
     if (timerRemain > 0) {
