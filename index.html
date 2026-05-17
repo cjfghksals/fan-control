@@ -50,7 +50,7 @@
       font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;
     }
     .radio-group {
-      display: flex; gap: 16px; margin-bottom: 16px;
+      display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;
     }
     .radio-group label {
       display: flex; align-items: center; gap: 6px;
@@ -82,16 +82,23 @@
       outline: none; color: #333;
     }
     .off-time-wrap input[type="time"]:focus { border-color: #9C27B0; }
+    .temp-ctl-inputs {
+      display: flex; gap: 16px; justify-content: center;
+    }
+    .temp-ctl-inputs .time-unit input[type="number"] {
+      width: 90px;
+    }
     #timerBtn {
       width: 100%; margin-top: 14px;
       background: #9C27B0; height: 48px; font-size: 1rem; flex: none;
     }
     #timerBtn.cancel { background: #FF5722; }
-    #countdown, #countdownOff {
+    #countdown, #countdownOff, #tempCtlStatus {
       text-align: center; font-size: 1.6rem;
       font-weight: bold; color: #2196F3;
       padding: 10px 0; letter-spacing: 2px;
     }
+    #tempCtlStatus { font-size: 1rem; color: #FF9800; letter-spacing: 0; }
     .hidden { display: none !important; }
   </style>
 </head>
@@ -121,6 +128,10 @@
       <label>
         <input type="radio" name="timerMode" id="modeOffTime" value="offtime">
         <span>꺼짐 시간 지정</span>
+      </label>
+      <label>
+        <input type="radio" name="timerMode" id="modeTempCtl" value="tempctl">
+        <span>온도 제어</span>
       </label>
     </div>
 
@@ -153,19 +164,36 @@
       </div>
     </div>
 
+    <!-- 온도 제어 입력 -->
+    <div id="tempCtlWrap" class="hidden">
+      <div id="tempCtlStatus" class="hidden"></div>
+      <div id="tempCtlInputs" class="temp-ctl-inputs">
+        <div class="time-unit">
+          <input type="number" id="triggerTemp" step="0.5" min="0" max="50" value="28">
+          <label>가동 온도 (°C)</label>
+        </div>
+        <div class="time-unit">
+          <input type="number" id="targetTemp" step="0.5" min="0" max="50" value="24">
+          <label>목표 온도 (°C)</label>
+        </div>
+      </div>
+    </div>
+
     <button id="timerBtn" class="hidden" disabled>타이머 시작</button>
   </div>
 
 
 
   <script>
-    const MQTT_HOST    = 'f228bba902564c449137624b48611c35.s1.eu.hivemq.cloud';
-    const MQTT_USER    = 'cjfghksals';
-    const MQTT_PASS    = 'Ehdals6469!';
-    const TOPIC_CTRL   = 'fan/control';
-    const TOPIC_STATUS = 'fan/status';
-    const TOPIC_TIMER  = 'fan/timer';
-    const TOPIC_TEMP   = 'fan/temp';
+    const MQTT_HOST       = 'f228bba902564c449137624b48611c35.s1.eu.hivemq.cloud';
+    const MQTT_USER       = 'cjfghksals';
+    const MQTT_PASS       = 'Ehdals6469!';
+    const TOPIC_CTRL      = 'fan/control';
+    const TOPIC_STATUS    = 'fan/status';
+    const TOPIC_TIMER     = 'fan/timer';
+    const TOPIC_TEMP      = 'fan/temp';
+    const TOPIC_TEMP_CTL  = 'fan/temp_control';
+    const TOPIC_TEMP_MODE = 'fan/temp_mode';
 
     const dot             = document.getElementById('dot');
     const statusText      = document.getElementById('statusText');
@@ -174,14 +202,18 @@
     const timerBtn        = document.getElementById('timerBtn');
     const countdown       = document.getElementById('countdown');
     const countdownOff    = document.getElementById('countdownOff');
+    const tempCtlStatus   = document.getElementById('tempCtlStatus');
     const timerInputsWrap = document.getElementById('timerInputsWrap');
     const offTimeWrap     = document.getElementById('offTimeWrap');
+    const tempCtlWrap     = document.getElementById('tempCtlWrap');
     const modeTimer       = document.getElementById('modeTimer');
     const modeOffTime     = document.getElementById('modeOffTime');
+    const modeTempCtl     = document.getElementById('modeTempCtl');
 
-    let fanOn        = false;
-    let mqttReady    = false;
-    let timerRunning = false;
+    let fanOn          = false;
+    let mqttReady      = false;
+    let timerRunning   = false;
+    let tempModeRunning = false;
 
     // 저장된 모드 복원
     const savedMode = localStorage.getItem('timerMode');
@@ -189,9 +221,24 @@
       const r = document.querySelector(`input[name="timerMode"][value="${savedMode}"]`);
       if (r) {
         r.checked = true;
-        timerInputsWrap.classList.toggle('hidden', savedMode !== 'timer');
-        offTimeWrap.classList.toggle('hidden', savedMode !== 'offtime');
+        showModeInputs(savedMode);
         timerBtn.classList.remove('hidden');
+      }
+    }
+
+    function showModeInputs(mode) {
+      timerInputsWrap.classList.toggle('hidden', mode !== 'timer');
+      offTimeWrap.classList.toggle('hidden',     mode !== 'offtime');
+      tempCtlWrap.classList.toggle('hidden',     mode !== 'tempctl');
+    }
+
+    function setTimerBtnLabel(mode) {
+      if (mode === 'tempctl') {
+        timerBtn.textContent = tempModeRunning ? '온도 제어 종료' : '온도 제어 시작';
+        timerBtn.classList.toggle('cancel', tempModeRunning);
+      } else {
+        timerBtn.textContent = timerRunning ? '타이머 취소' : '타이머 시작';
+        timerBtn.classList.toggle('cancel', timerRunning);
       }
     }
 
@@ -200,9 +247,9 @@
       r.addEventListener('change', () => {
         const mode = document.querySelector('input[name="timerMode"]:checked').value;
         localStorage.setItem('timerMode', mode);
-        timerInputsWrap.classList.toggle('hidden', mode !== 'timer');
-        offTimeWrap.classList.toggle('hidden', mode !== 'offtime');
+        showModeInputs(mode);
         timerBtn.classList.remove('hidden');
+        setTimerBtnLabel(mode);
         updateButtons();
       });
     });
@@ -219,6 +266,7 @@
       client.subscribe(TOPIC_STATUS);
       client.subscribe(TOPIC_TIMER);
       client.subscribe(TOPIC_TEMP);
+      client.subscribe(TOPIC_TEMP_MODE);
       updateButtons();
     });
 
@@ -239,8 +287,7 @@
       }
 
       if (topic === TOPIC_STATUS) {
-        const newState = msg === '1';
-        fanOn = newState;
+        fanOn = msg === '1';
         updateButtons();
       }
 
@@ -255,17 +302,18 @@
 
           const mode = document.querySelector('input[name="timerMode"]:checked')?.value;
 
-          // 어떤 모드인지 모를 때는 timer 모드로 표시
           if (!mode || mode === 'timer') {
             modeTimer.checked = true;
             timerInputsWrap.classList.remove('hidden');
             offTimeWrap.classList.add('hidden');
+            tempCtlWrap.classList.add('hidden');
             countdown.textContent = formatTime(secs);
             countdown.classList.remove('hidden');
             document.getElementById('timerInputs').classList.add('hidden');
           } else {
             offTimeWrap.classList.remove('hidden');
             timerInputsWrap.classList.add('hidden');
+            tempCtlWrap.classList.add('hidden');
             countdownOff.textContent = formatTime(secs);
             countdownOff.classList.remove('hidden');
             document.getElementById('offTimeInputs').classList.add('hidden');
@@ -285,20 +333,43 @@
         }
         updateButtons();
       }
+
+      if (topic === TOPIC_TEMP_MODE) {
+        if (msg === '0') {
+          tempModeRunning = false;
+          tempCtlStatus.classList.add('hidden');
+          tempCtlStatus.textContent = '';
+          document.getElementById('tempCtlInputs').classList.remove('hidden');
+          setRadiosDisabled(false);
+          const mode = document.querySelector('input[name="timerMode"]:checked')?.value;
+          setTimerBtnLabel(mode);
+        } else {
+          tempModeRunning = true;
+          const [tr, tg] = msg.split(':');
+          tempCtlStatus.textContent = `가동 ${parseFloat(tr).toFixed(1)}°C → 목표 ${parseFloat(tg).toFixed(1)}°C`;
+          tempCtlStatus.classList.remove('hidden');
+          document.getElementById('tempCtlInputs').classList.add('hidden');
+          modeTempCtl.checked = true;
+          showModeInputs('tempctl');
+          timerBtn.classList.remove('hidden');
+          setRadiosDisabled(true);
+          timerBtn.textContent = '온도 제어 종료';
+          timerBtn.classList.add('cancel');
+        }
+        updateButtons();
+      }
     });
 
     function updateButtons() {
-      onBtn.disabled    = !mqttReady || fanOn;
-      offBtn.disabled   = !mqttReady || !fanOn;
-      timerBtn.disabled = !mqttReady || timerRunning
-        ? (!mqttReady)
-        : false;
+      onBtn.disabled  = !mqttReady || fanOn;
+      offBtn.disabled = !mqttReady || !fanOn;
       timerBtn.disabled = !mqttReady;
     }
 
     function setRadiosDisabled(val) {
       modeTimer.disabled   = val;
       modeOffTime.disabled = val;
+      modeTempCtl.disabled = val;
     }
 
     function publish(msg) { client.publish(TOPIC_CTRL, msg); }
@@ -307,12 +378,28 @@
     offBtn.addEventListener('click', () => publish('0'));
 
     timerBtn.addEventListener('click', () => {
+      const mode = document.querySelector('input[name="timerMode"]:checked')?.value;
+
+      if (mode === 'tempctl') {
+        if (timerBtn.classList.contains('cancel')) {
+          client.publish(TOPIC_TEMP_CTL, '0');
+          return;
+        }
+        const trigger = parseFloat(document.getElementById('triggerTemp').value);
+        const target  = parseFloat(document.getElementById('targetTemp').value);
+        if (isNaN(trigger) || isNaN(target) || trigger <= target) {
+          alert('가동 온도는 목표 온도보다 높아야 합니다.');
+          return;
+        }
+        client.publish(TOPIC_TEMP_CTL, `${trigger}:${target}`);
+        return;
+      }
+
       if (timerBtn.classList.contains('cancel')) {
         publish('0');
         return;
       }
 
-      const mode = document.querySelector('input[name="timerMode"]:checked')?.value;
       let total = 0;
 
       if (mode === 'timer') {
@@ -327,14 +414,13 @@
         const now  = new Date();
         const off  = new Date();
         off.setHours(hh, mm, 0, 0);
-        if (off <= now) off.setDate(off.getDate() + 1); // 이미 지난 시간이면 내일
+        if (off <= now) off.setDate(off.getDate() + 1);
         total = Math.round((off - now) / 1000);
       }
 
       if (total <= 0) return;
       publish('T' + total);
     });
-
 
     function formatTime(secs) {
       const h = String(Math.floor(secs / 3600)).padStart(2, '0');
