@@ -134,7 +134,7 @@
       </label>
       <label>
         <input type="radio" name="timerMode" id="modeOffTime" value="offtime">
-        <span>꺼짐 시간 지정</span>
+        <span>꺼짐 예약</span>
       </label>
       <label>
         <input type="radio" name="timerMode" id="modeTempCtl" value="tempctl">
@@ -245,6 +245,9 @@
       if (mode === 'tempctl') {
         timerBtn.textContent = tempModeRunning ? '온도 제어 종료' : '온도 제어 시작';
         timerBtn.classList.toggle('cancel', tempModeRunning);
+      } else if (mode === 'offtime') {
+        timerBtn.textContent = timerRunning ? '꺼짐 예약 해제' : '꺼짐 예약 설정';
+        timerBtn.classList.toggle('cancel', timerRunning);
       } else {
         timerBtn.textContent = timerRunning ? '타이머 취소' : '타이머 시작';
         timerBtn.classList.toggle('cancel', timerRunning);
@@ -314,10 +317,10 @@
           timerRunning = true;
           setRadiosDisabled(true);
           timerBtn.classList.remove('hidden');
-          timerBtn.textContent = '타이머 취소';
           timerBtn.classList.add('cancel');
 
           const mode = document.querySelector('input[name="timerMode"]:checked')?.value;
+          timerBtn.textContent = (mode === 'offtime') ? '꺼짐 예약 해제' : '타이머 취소';
 
           if (!mode || mode === 'timer') {
             modeTimer.checked = true;
@@ -339,7 +342,8 @@
           timerRunning = false;
           if (!tempModeRunning) {
             setRadiosDisabled(false);
-            timerBtn.textContent = '타이머 시작';
+            const curMode = document.querySelector('input[name="timerMode"]:checked')?.value;
+            timerBtn.textContent = (curMode === 'offtime') ? '꺼짐 예약 설정' : '타이머 시작';
             timerBtn.classList.remove('cancel');
 
             countdown.textContent    = '';
