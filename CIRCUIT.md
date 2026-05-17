@@ -15,7 +15,7 @@
 | Component    | Pin       | Connected To  |
 |--------------|-----------|---------------|
 | NodeMCU      | D1        | 1kΩ Resistor  |
-| 1kΩ Resistor | other end | 2N3904 Base   |    <img width="268" height="421" alt="image" src="https://github.com/user-attachments/assets/57439ca4-8307-44e4-a66e-4c7d9fe2940f" />
+| 1kΩ Resistor | other end | 2N3904 Base   |
 | 2N3904       | Collector | Fan (-)       |
 | 2N3904       | Emitter   | GND           |
 | Fan          | (+)       | 5V            |
