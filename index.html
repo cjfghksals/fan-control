@@ -45,6 +45,12 @@
     button:disabled { opacity: 0.35; cursor: default; }
     #onBtn  { background: #2196F3; }
     #offBtn { background: #f44336; }
+    #tempModeMsg {
+      margin-top: 16px; padding: 12px;
+      background: #FFF3E0; border-radius: 10px;
+      text-align: center; font-size: 0.95rem;
+      font-weight: bold; color: #E65100;
+    }
     .section-title {
       font-size: 0.85rem; color: #888; margin-bottom: 14px;
       font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;
@@ -72,6 +78,7 @@
       border-radius: 10px; outline: none;
     }
     .time-unit input:focus { border-color: #9C27B0; }
+    .time-unit input:disabled { background: #f5f5f5; color: #aaa; }
     .time-sep { font-size: 1.4rem; color: #aaa; margin-top: 16px; }
     .off-time-wrap {
       display: flex; justify-content: center; align-items: center; gap: 10px;
@@ -93,12 +100,11 @@
       background: #9C27B0; height: 48px; font-size: 1rem; flex: none;
     }
     #timerBtn.cancel { background: #FF5722; }
-    #countdown, #countdownOff, #tempCtlStatus {
+    #countdown, #countdownOff {
       text-align: center; font-size: 1.6rem;
       font-weight: bold; color: #2196F3;
       padding: 10px 0; letter-spacing: 2px;
     }
-    #tempCtlStatus { font-size: 1rem; color: #FF9800; letter-spacing: 0; }
     .hidden { display: none !important; }
   </style>
 </head>
@@ -112,10 +118,11 @@
       <span id="statusText">연결 중...</span>
       <div class="device-name">NodeMCU 팬</div>
     </div>
-    <div class="btn-row">
+    <div class="btn-row" id="btnRow">
       <button id="onBtn"  disabled>팬 ON</button>
       <button id="offBtn" disabled>팬 OFF</button>
     </div>
+    <div id="tempModeMsg" class="hidden">온도 제어 모드로 사용중입니다.</div>
   </div>
 
   <div class="card">
@@ -166,7 +173,6 @@
 
     <!-- 온도 제어 입력 -->
     <div id="tempCtlWrap" class="hidden">
-      <div id="tempCtlStatus" class="hidden"></div>
       <div id="tempCtlInputs" class="temp-ctl-inputs">
         <div class="time-unit">
           <input type="number" id="triggerTemp" step="0.5" min="0" max="50" value="28">
@@ -199,20 +205,23 @@
     const statusText      = document.getElementById('statusText');
     const onBtn           = document.getElementById('onBtn');
     const offBtn          = document.getElementById('offBtn');
+    const btnRow          = document.getElementById('btnRow');
+    const tempModeMsg     = document.getElementById('tempModeMsg');
     const timerBtn        = document.getElementById('timerBtn');
     const countdown       = document.getElementById('countdown');
     const countdownOff    = document.getElementById('countdownOff');
-    const tempCtlStatus   = document.getElementById('tempCtlStatus');
     const timerInputsWrap = document.getElementById('timerInputsWrap');
     const offTimeWrap     = document.getElementById('offTimeWrap');
     const tempCtlWrap     = document.getElementById('tempCtlWrap');
     const modeTimer       = document.getElementById('modeTimer');
     const modeOffTime     = document.getElementById('modeOffTime');
     const modeTempCtl     = document.getElementById('modeTempCtl');
+    const triggerTempInput = document.getElementById('triggerTemp');
+    const targetTempInput  = document.getElementById('targetTemp');
 
-    let fanOn          = false;
-    let mqttReady      = false;
-    let timerRunning   = false;
+    let fanOn           = false;
+    let mqttReady       = false;
+    let timerRunning    = false;
     let tempModeRunning = false;
 
     // 저장된 모드 복원
@@ -240,6 +249,14 @@
         timerBtn.textContent = timerRunning ? '타이머 취소' : '타이머 시작';
         timerBtn.classList.toggle('cancel', timerRunning);
       }
+    }
+
+    function setTempCtlActive(active) {
+      btnRow.classList.toggle('hidden', active);
+      tempModeMsg.classList.toggle('hidden', !active);
+      triggerTempInput.disabled = active;
+      targetTempInput.disabled  = active;
+      setRadiosDisabled(active);
     }
 
     // 라디오 변경
@@ -337,22 +354,18 @@
       if (topic === TOPIC_TEMP_MODE) {
         if (msg === '0') {
           tempModeRunning = false;
-          tempCtlStatus.classList.add('hidden');
-          tempCtlStatus.textContent = '';
-          document.getElementById('tempCtlInputs').classList.remove('hidden');
-          setRadiosDisabled(false);
+          setTempCtlActive(false);
           const mode = document.querySelector('input[name="timerMode"]:checked')?.value;
           setTimerBtnLabel(mode);
         } else {
           tempModeRunning = true;
           const [tr, tg] = msg.split(':');
-          tempCtlStatus.textContent = `가동 ${parseFloat(tr).toFixed(1)}°C → 목표 ${parseFloat(tg).toFixed(1)}°C`;
-          tempCtlStatus.classList.remove('hidden');
-          document.getElementById('tempCtlInputs').classList.add('hidden');
+          triggerTempInput.value = parseFloat(tr).toFixed(1);
+          targetTempInput.value  = parseFloat(tg).toFixed(1);
+          setTempCtlActive(true);
           modeTempCtl.checked = true;
           showModeInputs('tempctl');
           timerBtn.classList.remove('hidden');
-          setRadiosDisabled(true);
           timerBtn.textContent = '온도 제어 종료';
           timerBtn.classList.add('cancel');
         }
@@ -385,8 +398,8 @@
           client.publish(TOPIC_TEMP_CTL, '0');
           return;
         }
-        const trigger = parseFloat(document.getElementById('triggerTemp').value);
-        const target  = parseFloat(document.getElementById('targetTemp').value);
+        const trigger = parseFloat(triggerTempInput.value);
+        const target  = parseFloat(targetTempInput.value);
         if (isNaN(trigger) || isNaN(target) || trigger <= target) {
           alert('가동 온도는 목표 온도보다 높아야 합니다.');
           return;
